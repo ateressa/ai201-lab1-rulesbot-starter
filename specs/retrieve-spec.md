@@ -45,7 +45,11 @@ Results should be ordered from most to least relevant (lowest to highest distanc
 *Describe how you will use `_collection.query()` to find relevant chunks. What arguments will you pass, and why?*
 
 ```
-[your answer here]
+To run a semantic search, _collection.query() takes:
+      - query_texts : a list containing your query string
+      - n_results   : how many results to return
+      - include     : what to return — use ["documents", "metadatas", "distances"]
+Why? Passing query_texts = [query] lets Chroma compute the query embedding with the collection's embedding function. n_results caps the returned candidates for efficiency and downstream context size. include = ["documents", "metadatas", "distances"] returns chunk text, metadata, and cosine distances.  
 ```
 
 ---
@@ -55,7 +59,21 @@ Results should be ordered from most to least relevant (lowest to highest distanc
 *Sketch out what one item in your return list looks like as a concrete example. Where does each field come from in the query results?*
 
 ```
-[your answer here]
+{
+      "text": query_results["documents"][0][i],
+      "game": query_results["metadatas"][0][i]["game"],
+      "distance": float(query_results["distances"][0][i])
+}
+
+For example, if the first returned chunk is about Uno, one item could look like:
+
+{
+      "text": "When a player has one card left, they must say 'Uno' before the next player takes their turn.",
+      "game": "uno",
+      "distance": 0.18
+}
+
+The "text" comes from the documents list, the "game" comes from the chunk metadata, and the "distance" comes from Chroma's distance scores for that match.
 ```
 
 ---
@@ -65,7 +83,7 @@ Results should be ordered from most to least relevant (lowest to highest distanc
 *`_collection.query()` returns nested lists. Describe what index you need to access to get the actual list of results for a single query, and why the nesting exists.*
 
 ```
-[your answer here]
+Use index [0] to get the results for the single query, because Chroma returns one outer list per query in `query_texts`. Since `retrieve()` sends only one query string, the actual documents, metadatas, and distances are all inside the first element of each returned list.
 ```
 
 ---
@@ -75,7 +93,7 @@ Results should be ordered from most to least relevant (lowest to highest distanc
 *Will you filter out results above a certain distance score, or return all `n_results` regardless of how relevant they are? What are the tradeoffs of each approach?*
 
 ```
-[your answer here]
+Return the top `n_results` without applying an extra distance cutoff. That keeps the behavior predictable and lets the caller decide how much context to use. The tradeoff is that some weak matches may still appear, but ranking still puts the best chunks first and avoids accidentally dropping useful edge-case matches.
 ```
 
 ---
@@ -85,7 +103,7 @@ Results should be ordered from most to least relevant (lowest to highest distanc
 *How does your implementation behave when: (a) the collection is empty, (b) the query matches no chunks well, (c) the query matches chunks from multiple games?*
 
 ```
-[your answer here]
+If the collection is empty, return `[]` immediately. If the query does not match anything especially well, still return the best `n_results` chunks so the caller can inspect the strongest available context. If the query matches chunks from multiple games, return the highest-ranked results across all games and include each chunk's `game` metadata so the caller can tell where each one came from.
 ```
 
 ---
