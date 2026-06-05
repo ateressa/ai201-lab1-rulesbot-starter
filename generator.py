@@ -3,6 +3,24 @@ from config import GROQ_API_KEY, LLM_MODEL
 
 _client = Groq(api_key=GROQ_API_KEY)
 
+_SYSTEM_PROMPT = (
+    "You are a board game rules reference. The retrieved rule excerpts below are your only permitted source of information.\n\n"
+    "Do not use your training knowledge of board games for any purpose: not to fill gaps in the retrieved text, "
+    "not to add context, not to correct the excerpts, and not to infer answers from partial information. "
+    "Answer only what the excerpts explicitly state. If they do not contain a clear answer, say so.\n\n"
+    "When you answer, state which game each answer comes from. "
+    "If the question names a specific game, only use chunks from that game. "
+    "If no game is specified, answer for every game represented in the retrieved chunks, labeled by game name."
+)
+
+
+def _format_context(chunks):
+    parts = []
+    for i, chunk in enumerate(chunks, start=1):
+        header = f"Chunk {i} | Game: {chunk['game']} | Distance: {chunk['distance']:.2f}"
+        parts.append(f"{header}\n{chunk['text']}")
+    return "\n\n---\n\n".join(parts)
+
 
 def generate_response(query, retrieved_chunks):
     """
@@ -35,5 +53,15 @@ def generate_response(query, retrieved_chunks):
             "Try rephrasing your question — or check that your ingestion pipeline is working."
         )
 
-    # Your implementation here.
-    return "⚙️ Response generation not yet implemented. Complete Milestone 3 to activate answers."
+    context = _format_context(retrieved_chunks)
+    user_message = f"Retrieved rule excerpts:\n\n{context}\n\nQuestion: {query}"
+
+    response = _client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=[
+            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "user", "content": user_message},
+        ],
+    )
+
+    return response.choices[0].message.content
